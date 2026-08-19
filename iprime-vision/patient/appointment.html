@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Book an Appointment — iPrime Vision</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  .appt-grid { display:grid; grid-template-columns: 1.1fr .9fr; gap: 32px; align-items:start; }
+  @media (max-width: 960px) { .appt-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div id="site-nav"></div>
+
+<section class="section" style="padding-top:52px;">
+  <div class="container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Appointment</span>
+      <h1 style="font-size:clamp(2rem,3.4vw,2.6rem);">Book your visit in under a minute.</h1>
+      <p class="lede">Pick a service, choose a date and time that works, and we'll confirm shortly after.</p>
+    </div>
+
+    <div class="appt-grid">
+      <div class="form-panel reveal">
+        <div class="form-message" id="form-msg"></div>
+        <form id="appt-form">
+          <div class="field">
+            <label for="f-service">Service</label>
+            <select id="f-service" required>
+              <option value="">Select a service…</option>
+              <option>Eye Examination</option>
+              <option>Contact Lens Fitting</option>
+              <option>Eyewear Styling & Fitting</option>
+              <option>Follow-up Checkup</option>
+              <option>Pediatric Vision Screening</option>
+              <option>Frame Adjustment</option>
+            </select>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="f-date">Preferred Date</label>
+              <input type="date" id="f-date" required>
+            </div>
+            <div class="field">
+              <label for="f-time">Preferred Time</label>
+              <select id="f-time" required>
+                <option value="">Select a time…</option>
+                <option>09:00 AM</option><option>09:30 AM</option><option>10:00 AM</option>
+                <option>10:30 AM</option><option>11:00 AM</option><option>01:00 PM</option>
+                <option>01:30 PM</option><option>02:00 PM</option><option>02:30 PM</option>
+                <option>03:00 PM</option><option>03:30 PM</option><option>04:00 PM</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="f-notes">Notes for our team (optional)</label>
+            <textarea id="f-notes" rows="3" placeholder="Any symptoms, concerns, or requests?"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">Submit Appointment Request</button>
+          <p class="text-soft text-center mt-16" style="font-size:.8rem;">Your request will be marked <strong>Pending</strong> until our clinic confirms it.</p>
+        </form>
+      </div>
+
+      <div class="reveal">
+        <div class="card mb-24">
+          <h3 class="mb-16">Clinic Hours</h3>
+          <div style="display:grid;gap:10px;font-size:.9rem;">
+            <div class="flex-between"><span class="text-soft">Monday – Friday</span><strong>9:00 AM – 6:00 PM</strong></div>
+            <div class="flex-between"><span class="text-soft">Saturday</span><strong>9:00 AM – 4:00 PM</strong></div>
+            <div class="flex-between"><span class="text-soft">Sunday</span><strong>Closed</strong></div>
+          </div>
+        </div>
+        <div class="card" id="my-appts-card">
+          <h3 class="mb-16">My Upcoming Appointments</h3>
+          <div id="my-appts-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="site-footer"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  renderSiteNav('appointment');
+  renderSiteFooter();
+
+  document.getElementById('f-date').min = todayISO();
+
+  const myApptsCard = document.getElementById('my-appts-card');
+  const myApptsList = document.getElementById('my-appts-list');
+
+  let user = null;
+  let knownStatuses = {};
+  let hasLoadedAppointments = false;
+
+  async function loadAppointments() {
+    const response = await fetch('/api/appointments');
+    if (!response.ok) {
+      myApptsCard.innerHTML = `<h3 class="mb-16">My Upcoming Appointments</h3><p class="text-soft" style="font-size:.88rem;">
+        <a href="../auth/auth.html" style="color:var(--latte-dark);font-weight:700;">Sign in</a> before booking or viewing appointments.</p>`;
+      document.querySelector('#appt-form button[type="submit"]').disabled = true;
+      return;
+    }
+    const result = await response.json();
+    user = await serverUser();
+    const changedToConfirmed = hasLoadedAppointments && result.appointments.find(a =>
+      a.status === 'Confirmed' && knownStatuses[a.id] === 'Pending'
+    );
+    result.appointments.forEach(a => { knownStatuses[a.id] = a.status; });
+    if (changedToConfirmed) {
+      showMsg('Your appointment has been confirmed by the clinic.', 'success');
+    }
+    hasLoadedAppointments = true;
+    renderMyAppts(result.appointments);
+  }
+
+  function renderMyAppts(appointments) {
+    const mine = appointments.filter(a => a.date >= todayISO()).sort((a,b) => a.date.localeCompare(b.date));
+    if (!mine.length) {
+      myApptsList.innerHTML = '<p class="text-soft" style="font-size:.88rem;">No upcoming appointments yet.</p>';
+      return;
+    }
+    myApptsList.innerHTML = mine.map(a => `
+      <div class="list-row">
+        <div class="lr-time">${a.time}<span>${fmtDate(a.date)}</span></div>
+        <div class="lr-main"><strong>${a.service}</strong></div>
+        <span class="tag ${a.status === 'Confirmed' ? 'tag-success' : 'tag-warning'}">${a.status}</span>
+      </div>`).join('');
+  }
+
+  const msgBox = document.getElementById('form-msg');
+  function showMsg(text, type) { msgBox.textContent = text; msgBox.className = 'form-message show ' + type; }
+
+  document.getElementById('appt-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const service = document.getElementById('f-service').value;
+    const date = document.getElementById('f-date').value;
+    const time = document.getElementById('f-time').value;
+    const notes = document.getElementById('f-notes').value.trim();
+
+    if (!service || !date || !time) { showMsg('Please fill in all required fields.', 'error'); return; }
+    const response = await fetch('/api/appointments', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service, date, time, notes })
+    });
+    const result = await response.json();
+    if (!response.ok) { showMsg(result.message, 'error'); return; }
+
+    showMsg('Appointment request submitted! We will confirm it shortly.', 'success');
+    e.target.reset();
+    document.getElementById('f-date').min = todayISO();
+    loadAppointments();
+  });
+  (async function initializeAppointmentPage() {
+    user = await serverUser();
+    if (!user) {
+      const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = '../auth/auth.html?next=' + returnTo;
+      return;
+    }
+    loadAppointments();
+    window.setInterval(loadAppointments, 15000);
+  })();
+</script>
+</body>
+</html>
