@@ -1,0 +1,62 @@
+/* ==========================================================================
+   iPrime Vision & Eyecare Specialists — Design Tokens
+   Palette: Nude (primary) / Latte (secondary) / Dirty White (tertiary) / Brown (ink)
+   ========================================================================== */
+
+:root {
+  /* --- Core palette --- */
+  --nude:            #E7CDB2;   /* primary  – buttons, highlights, badges   */
+  --nude-light:       #F1E1CE;
+  --nude-dark:        #D8B992;
+
+  --latte:            #B98F63;  /* secondary – active states, mid accents  */
+  --latte-light:       #CDA87D;
+  --latte-dark:        #9C7248;
+
+  --dirty-white:       #F7F2EA; /* tertiary – page backgrounds, panels     */
+  --dirty-white-dim:    #EFE7D9;
+  --white:              #FFFDF9;
+
+  --brown:              #4A2F22; /* ink – headings, sidebar, primary text  */
+  --brown-soft:          #7A5B45; /* secondary text                        */
+  --brown-deep:           #331D13; /* darkest, for hover / high emphasis   */
+  --ink:                 #24211F;
+  --sage:                #7E9581;
+  --coral:               #C97861;
+
+  /* --- Semantic --- */
+  --success:  #6E8B5D;
+  --success-bg: #E8EEDF;
+  --warning:  #C08A2E;
+  --warning-bg: #F6E7CC;
+  --danger:   #B0503E;
+  --danger-bg: #F5DFD8;
+  --info:     #5C7A96;
+  --info-bg:  #E1EAF1;
+
+  /* --- Surfaces --- */
+  --bg-page:      var(--dirty-white);
+  --bg-card:      var(--white);
+  --bg-sidebar:   var(--brown);
+  --border-soft:  #E6D9C6;
+  --border-mid:   #D9C4A8;
+
+  /* --- Typography --- */
+  --font-display: 'Fraunces', 'Georgia', serif;
+  --font-body:    'Manrope', 'Segoe UI', sans-serif;
+
+  /* --- Radii & shadow --- */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 3px 12px rgba(74, 47, 34, 0.07);
+  --shadow-md: 0 12px 30px rgba(74, 47, 34, 0.12);
+  --shadow-lg: 0 22px 54px rgba(74, 47, 34, 0.16);
+
+  /* --- Motion --- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 150ms;
+  --t-med: 280ms;
+}
