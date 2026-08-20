@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQ — iPrime Vision</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  .faq-item { border-bottom: 1px solid var(--border-soft); }
+  .faq-q { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 4px; background:none; border:none; width:100%; text-align:left; font-family:var(--font-display); font-size:1.08rem; color:var(--brown); }
+  .faq-q .plus { flex-shrink:0; width:26px; height:26px; border-radius:50%; background:var(--nude-light); display:flex; align-items:center; justify-content:center; transition: transform var(--t-fast) var(--ease); }
+  .faq-q .plus svg { width:14px; height:14px; }
+  .faq-item.open .plus { transform: rotate(45deg); background:var(--nude); }
+  .faq-a { max-height:0; overflow:hidden; transition: max-height var(--t-med) var(--ease); }
+  .faq-a-inner { padding: 0 4px 22px; color: var(--brown-soft); }
+  .faq-item.open .faq-a { max-height: 300px; }
+</style>
+</head>
+<body>
+
+<div id="site-nav"></div>
+
+<section class="section" style="padding-top:52px;">
+  <div class="container">
+    <div class="section-head center reveal">
+      <span class="eyebrow">FAQ</span>
+      <h1 style="font-size:clamp(2rem,3.4vw,2.6rem);">Questions, answered.</h1>
+      <p class="lede" style="margin:0 auto;">Everything patients ask us most — booking, insurance, prescriptions, and more.</p>
+    </div>
+
+    <div class="card reveal" style="max-width:760px;margin:0 auto;padding:8px 28px;">
+      <div id="faq-list"></div>
+    </div>
+
+    <div class="card reveal mt-32" style="max-width:760px;margin-left:auto;margin-right:auto;">
+      <h3 class="mb-8">Still have a question?</h3>
+      <p class="text-soft mb-16" style="font-size:.9rem;">Send it to our team and we'll get back to you within one business day.</p>
+      <div class="form-message" id="form-msg"></div>
+      <form id="ask-form">
+        <div class="field-row">
+          <div class="field"><label for="f-name">Your Name</label><input type="text" id="f-name" required></div>
+          <div class="field"><label for="f-email">Your Email</label><input type="email" id="f-email" required></div>
+        </div>
+        <div class="field"><label for="f-q">Your Question</label><textarea id="f-q" rows="3" required placeholder="Ask about services, pricing, insurance…"></textarea></div>
+        <button type="submit" class="btn btn-primary">Submit Question</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<div id="site-footer"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  renderSiteNav('faq');
+  renderSiteFooter();
+
+  const faqList = document.getElementById('faq-list');
+  faqList.innerHTML = Store.faqs().map((f, i) => `
+    <div class="faq-item" data-i="${i}">
+      <button class="faq-q" type="button">
+        ${f.q}
+        <span class="plus">${svg('plus')}</span>
+      </button>
+      <div class="faq-a"><div class="faq-a-inner">${f.a}</div></div>
+    </div>`).join('');
+
+  faqList.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.faq-item').classList.toggle('open'));
+  });
+
+  const msgBox = document.getElementById('form-msg');
+  document.getElementById('ask-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('f-name').value.trim();
+    const email = document.getElementById('f-email').value.trim();
+    const question = document.getElementById('f-q').value.trim();
+    const response = await fetch('/api/faq/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, question })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      msgBox.textContent = result.message || 'We could not send your question. Please try again.';
+      msgBox.className = 'form-message show error';
+      return;
+    }
+    msgBox.textContent = 'Thanks! Your question has been sent to our team.';
+    msgBox.className = 'form-message show success';
+    e.target.reset();
+  });
+</script>
+</body>
+</html>

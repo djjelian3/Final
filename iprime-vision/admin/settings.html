@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — iPrime Vision Admin</title>
+<link rel="stylesheet" href="../css/admin.css">
+<style>
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid var(--border-soft); }
+  .toggle-row:last-child { border-bottom:none; }
+  .switch { position:relative; width:44px; height:24px; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; inset:0; background:var(--border-mid); border-radius:999px; cursor:pointer; transition:.2s; }
+  .slider::before { content:''; position:absolute; width:18px; height:18px; left:3px; top:3px; background:var(--white); border-radius:50%; transition:.2s; }
+  .switch input:checked + .slider { background:var(--brown); }
+  .switch input:checked + .slider::before { transform:translateX(20px); }
+</style>
+</head>
+<body>
+
+<div id="admin-mount"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  const admin = renderAdminShellStart('settings');
+  if (admin) {
+    renderAdminTopbar('Settings', 'Clinic preferences and system configuration.');
+
+    document.getElementById('admin-content').innerHTML = `
+      <div class="grid-2" style="align-items:start;">
+        <div class="panel">
+          <div class="panel-head"><h3>Clinic Information</h3></div>
+          <div class="panel-body pad">
+            <div class="field"><label>Clinic Name</label><input type="text" value="iPrime Vision & Eyecare Specialists"></div>
+            <div class="field"><label>Address</label><input type="text" value="Mount Mayon St.,Quirino, Davao City, Philippines"></div>
+            <div class="field-row">
+              <div class="field"><label>Phone</label><input type="text" value="0905 314 5838"></div>
+              <div class="field"><label>Email</label><input type="text" value="info.ipves@gmail.com"></div>
+            </div>
+            <button class="btn btn-primary" id="save-clinic">Save Clinic Info</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Preferences</h3></div>
+          <div class="panel-body pad">
+            <div class="toggle-row">
+              <div><strong>Email notifications</strong><p class="text-soft" style="font-size:.82rem;margin:2px 0 0;">Get emailed when a new appointment request comes in.</p></div>
+              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><strong>Low stock alerts</strong><p class="text-soft" style="font-size:.82rem;margin:2px 0 0;">Notify when inventory falls below reorder level.</p></div>
+              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+              <div><strong>Auto-confirm appointments</strong><p class="text-soft" style="font-size:.82rem;margin:2px 0 0;">Skip manual review for returning patients.</p></div>
+              <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel mt-24">
+        <div class="panel-head"><h3>Danger Zone</h3></div>
+        <div class="panel-body pad">
+          <p class="text-soft mb-16">Reset all demo data back to its original seeded state. This clears every appointment, patient, and record change made in this prototype.</p>
+          <button class="btn btn-danger" id="reset-btn">Reset Demo Data</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('save-clinic').addEventListener('click', () => alert('Clinic information saved.'));
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      if (!confirm('This will erase all local changes and reload the original demo data. Continue?')) return;
+      Object.values(DB_KEYS).forEach(k => localStorage.removeItem(k));
+      seedDatabase();
+      alert('Demo data has been reset.');
+      window.location.href = 'dashboard.html';
+    });
+  }
+</script>
+</body>
+</html>

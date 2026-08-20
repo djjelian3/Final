@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appointments — iPrime Vision Admin</title>
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+
+<div id="admin-mount"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  const admin = renderAdminShellStart('appointments');
+  if (admin) {
+    renderAdminTopbar('Appointments', 'Review, confirm, and manage patient appointments.');
+
+    document.getElementById('admin-content').innerHTML = `
+      <div class="panel">
+        <div class="panel-body pad">
+          <div class="toolbar">
+            <div class="search-box">${svg('search')}<input type="text" id="search" placeholder="Search by patient or service…"></div>
+            <button class="filter-chip active" data-status="all">All</button>
+            <button class="filter-chip" data-status="Pending">Pending</button>
+            <button class="filter-chip" data-status="Confirmed">Confirmed</button>
+            <button class="filter-chip" data-status="Cancelled">Cancelled</button>
+            <button class="btn btn-primary btn-sm" id="add-btn" style="margin-left:auto;">${svg('plus')} New Appointment</button>
+          </div>
+          <div id="pending-notice" class="form-message" style="margin-bottom:16px;"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Patient</th><th>Service</th><th>Date</th><th>Time</th><th>Status</th><th></th></tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('admin-content').insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="appointment-modal" role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title">
+        <div class="modal-box">
+          <div class="modal-head">
+            <div><span class="eyebrow">Schedule a visit</span><h2 id="appointment-modal-title">New Appointment</h2></div>
+            <button class="modal-close" type="button" id="close-appointment-modal" aria-label="Close">${svg('x')}</button>
+          </div>
+          <form id="appointment-form">
+            <div class="field"><label for="appointment-patient">Patient name</label><input id="appointment-patient" required placeholder="Use the patient account name"></div>
+            <div class="field"><label for="appointment-service">Service</label><select id="appointment-service"><option>Eye Examination</option><option>Contact Lens Fitting</option><option>Eyewear Styling & Fitting</option><option>Follow-up Checkup</option><option>Frame Adjustment</option></select></div>
+            <div class="field-row">
+              <div class="field"><label for="appointment-date">Date</label><input id="appointment-date" type="date" min="${todayISO()}" value="${todayISO()}" required></div>
+              <div class="field"><label for="appointment-time">Time</label><select id="appointment-time"><option>09:00 AM</option><option>09:30 AM</option><option>10:00 AM</option><option>10:30 AM</option><option>11:00 AM</option><option>01:00 PM</option><option>01:30 PM</option><option>02:00 PM</option><option>02:30 PM</option><option>03:00 PM</option><option>03:30 PM</option><option>04:00 PM</option></select></div>
+            </div>
+            <div class="field"><label for="appointment-notes">Notes <span class="text-soft">(optional)</span></label><textarea id="appointment-notes" rows="3" placeholder="Add a short note for the clinic team"></textarea></div>
+            <div class="modal-actions"><button class="btn btn-ghost" type="button" id="cancel-appointment">Cancel</button><button class="btn btn-primary" type="submit">${svg('calendar')} Create Appointment</button></div>
+          </form>
+        </div>
+      </div>
+    `);
+
+    const appointmentModal = document.getElementById('appointment-modal');
+    const appointmentForm = document.getElementById('appointment-form');
+    function closeAppointmentModal() { appointmentModal.classList.remove('open'); appointmentForm.reset(); document.getElementById('appointment-date').value = todayISO(); }
+
+    let filterStatus = 'all';
+    let query = '';
+    let appointments = [];
+
+    function render() {
+      let list = appointments.slice().sort((a,b) => (b.date + b.time).localeCompare(a.date + a.time));
+      if (filterStatus !== 'all') list = list.filter(a => a.status === filterStatus);
+      if (query) list = list.filter(a => (a.patient + a.service).toLowerCase().includes(query.toLowerCase()));
+
+      const rows = document.getElementById('rows');
+      const pendingCount = appointments.filter(a => a.status === 'Pending').length;
+      const pendingNotice = document.getElementById('pending-notice');
+      pendingNotice.textContent = pendingCount ? `${pendingCount} patient appointment request${pendingCount === 1 ? '' : 's'} waiting for review.` : '';
+      pendingNotice.className = pendingCount ? 'pending-notice show' : 'pending-notice';
+      if (!list.length) {
+        rows.innerHTML = `<tr><td colspan="6"><div class="empty-state">${svg('calendar')}<p>No appointments match your filters.</p></div></td></tr>`;
+        return;
+      }
+      rows.innerHTML = list.map(a => `
+        <tr class="appointment-row ${a.status.toLowerCase()}">
+          <td><strong>${a.patient}</strong></td>
+          <td>${a.service}</td>
+          <td>${fmtDate(a.date)}</td>
+          <td>${a.time}</td>
+          <td><span class="tag ${a.status === 'Confirmed' ? 'tag-success' : a.status === 'Pending' ? 'tag-warning' : 'tag-danger'}">${a.status}</span></td>
+          <td>
+            <div class="flex gap-8">
+              ${a.status !== 'Confirmed' ? `<button class="action-icon" title="Confirm" onclick="setStatus('${a.id}','Confirmed')">${svg('check')}</button>` : ''}
+              ${a.status !== 'Cancelled' ? `<button class="action-icon" title="Cancel" onclick="setStatus('${a.id}','Cancelled')">${svg('x')}</button>` : ''}
+              <button class="action-icon" title="Delete" onclick="removeAppt('${a.id}')">${svg('trash')}</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    async function loadAppointments() {
+      const response = await fetch('/api/appointments');
+      const result = await response.json();
+      if (!response.ok) {
+        document.getElementById('rows').innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>${result.message || 'Unable to load appointments.'}</p></div></td></tr>`;
+        return;
+      }
+      appointments = result.appointments;
+      render();
+    }
+
+    window.setStatus = async function(id, status) {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        alert(result.message || 'Unable to update appointment.');
+        return;
+      }
+      await loadAppointments();
+    };
+    window.removeAppt = async function(id) {
+      if (!confirm('Delete this appointment?')) return;
+      const response = await fetch(`/api/appointments/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const result = await response.json();
+        alert(result.message || 'Unable to delete appointment.');
+        return;
+      }
+      await loadAppointments();
+    };
+
+    document.getElementById('search').addEventListener('input', (e) => { query = e.target.value; render(); });
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        filterStatus = chip.dataset.status;
+        render();
+      });
+    });
+    document.getElementById('add-btn').addEventListener('click', () => {
+      appointmentModal.classList.add('open');
+      document.getElementById('appointment-patient').focus();
+    });
+    document.getElementById('close-appointment-modal').addEventListener('click', closeAppointmentModal);
+    document.getElementById('cancel-appointment').addEventListener('click', closeAppointmentModal);
+    appointmentModal.addEventListener('click', event => { if (event.target === appointmentModal) closeAppointmentModal(); });
+    appointmentForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const response = await fetch('/api/appointments/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          patient: document.getElementById('appointment-patient').value.trim(),
+          service: document.getElementById('appointment-service').value,
+          date: document.getElementById('appointment-date').value,
+          time: document.getElementById('appointment-time').value,
+          notes: document.getElementById('appointment-notes').value.trim()
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) { alert(result.message || 'Unable to create appointment.'); return; }
+      closeAppointmentModal();
+      await loadAppointments();
+    });
+
+    loadAppointments();
+    window.setInterval(loadAppointments, 15000);
+  }
+</script>
+</body>
+</html>
