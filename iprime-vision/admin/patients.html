@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patient Records — iPrime Vision Admin</title>
+<link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+
+<div id="admin-mount"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  const admin = renderAdminShellStart('patients');
+  if (admin) {
+    renderAdminTopbar('Patient Records', 'Every patient on file, with their care history.');
+
+    document.getElementById('admin-content').innerHTML = `
+      <div class="panel">
+        <div class="panel-body pad">
+          <div class="toolbar">
+            <div class="search-box">${svg('search')}<input type="text" id="search" placeholder="Search patients by name or email…"></div>
+            <button class="btn btn-primary btn-sm" id="add-btn" style="margin-left:auto;">${svg('plus')} New Patient</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Patient</th><th>Contact</th><th>Condition</th><th>Last Visit</th><th>Status</th><th></th></tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('admin-content').insertAdjacentHTML('beforeend', `
+      <div class="modal-overlay" id="patient-modal" role="dialog" aria-modal="true" aria-labelledby="patient-modal-title">
+        <div class="modal-box">
+          <div class="modal-head"><div><span class="eyebrow">Patient records</span><h2 id="patient-modal-title">New Patient</h2></div><button class="modal-close" type="button" id="close-patient-modal" aria-label="Close">${svg('x')}</button></div>
+          <form id="patient-form">
+            <div class="field"><label for="patient-name">Full name</label><input id="patient-name" required placeholder="e.g. Maria Santos"></div>
+            <div class="field-row"><div class="field"><label for="patient-email">Email</label><input id="patient-email" type="email" placeholder="patient@example.com"></div><div class="field"><label for="patient-phone">Phone</label><input id="patient-phone" type="tel" placeholder="+63 917 000 0000"></div></div>
+            <div class="modal-actions"><button class="btn btn-ghost" type="button" id="cancel-patient">Cancel</button><button class="btn btn-primary" type="submit">${svg('users')} Add Patient</button></div>
+          </form>
+        </div>
+      </div>
+      <div class="modal-overlay" id="condition-modal" role="dialog" aria-modal="true" aria-labelledby="condition-modal-title">
+        <div class="modal-box">
+          <div class="modal-head"><div><span class="eyebrow">Care history</span><h2 id="condition-modal-title">Update Condition</h2></div><button class="modal-close" type="button" id="close-condition-modal" aria-label="Close">${svg('x')}</button></div>
+          <form id="condition-form"><div class="field"><label for="patient-condition">Condition or diagnosis</label><input id="patient-condition" required></div><div class="modal-actions"><button class="btn btn-ghost" type="button" id="cancel-condition">Cancel</button><button class="btn btn-primary" type="submit">${svg('check')} Save Update</button></div></form>
+        </div>
+      </div>
+    `);
+    const patientModal = document.getElementById('patient-modal');
+    const conditionModal = document.getElementById('condition-modal');
+    let editingPatientId = null;
+    function closePatientModal() { patientModal.classList.remove('open'); document.getElementById('patient-form').reset(); }
+    function closeConditionModal() { conditionModal.classList.remove('open'); editingPatientId = null; }
+
+    let query = '';
+    function render() {
+      let list = Store.patients().slice();
+      if (query) list = list.filter(p => (p.name + p.email).toLowerCase().includes(query.toLowerCase()));
+      const rows = document.getElementById('rows');
+      if (!list.length) { rows.innerHTML = `<tr><td colspan="6"><div class="empty-state">${svg('users')}<p>No patients found.</p></div></td></tr>`; return; }
+      rows.innerHTML = list.map(p => `
+        <tr>
+          <td><div class="flex gap-12" style="align-items:center;"><span class="avatar" style="width:32px;height:32px;font-size:.72rem;">${initials(p.name)}</span><strong>${p.name}</strong></div></td>
+          <td><div>${p.email}</div><small class="text-soft">${p.phone}</small></td>
+          <td>${p.condition}</td>
+          <td>${p.lastVisit === '—' ? '—' : fmtDate(p.lastVisit)}</td>
+          <td><span class="tag ${p.status === 'Active' ? 'tag-success' : p.status === 'New' ? 'tag-info' : 'tag-warning'}">${p.status}</span></td>
+          <td>
+            <div class="flex gap-8">
+              <button class="action-icon" title="Edit condition" onclick="editPatient('${p.id}')">${svg('edit')}</button>
+              <button class="action-icon" title="Remove" onclick="removePatient('${p.id}')">${svg('trash')}</button>
+            </div>
+          </td>
+        </tr>`).join('');
+    }
+
+    window.editPatient = function(id) {
+      const list = Store.patients();
+      const p = list.find(x => x.id === id);
+      if (!p) return;
+      editingPatientId = id;
+      document.getElementById('condition-modal-title').textContent = 'Update ' + p.name;
+      document.getElementById('patient-condition').value = p.condition;
+      conditionModal.classList.add('open');
+    };
+    window.removePatient = function(id) {
+      if (!confirm('Remove this patient record?')) return;
+      Store.savePatients(Store.patients().filter(p => p.id !== id));
+      render();
+    };
+
+    document.getElementById('search').addEventListener('input', (e) => { query = e.target.value; render(); });
+    document.getElementById('add-btn').addEventListener('click', () => { patientModal.classList.add('open'); document.getElementById('patient-name').focus(); });
+    document.getElementById('close-patient-modal').addEventListener('click', closePatientModal);
+    document.getElementById('cancel-patient').addEventListener('click', closePatientModal);
+    patientModal.addEventListener('click', event => { if (event.target === patientModal) closePatientModal(); });
+    document.getElementById('close-condition-modal').addEventListener('click', closeConditionModal);
+    document.getElementById('cancel-condition').addEventListener('click', closeConditionModal);
+    conditionModal.addEventListener('click', event => { if (event.target === conditionModal) closeConditionModal(); });
+    document.getElementById('condition-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const list = Store.patients();
+      const patient = list.find(item => item.id === editingPatientId);
+      if (patient) patient.condition = document.getElementById('patient-condition').value.trim();
+      Store.savePatients(list); render(); closeConditionModal();
+    });
+    document.getElementById('patient-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const name = document.getElementById('patient-name').value.trim();
+      const email = document.getElementById('patient-email').value.trim();
+      const phone = document.getElementById('patient-phone').value.trim();
+      if (!name) return;
+      const list = Store.patients();
+      list.push({ id: uid('pt'), name, email, phone, lastVisit: '—', condition: 'Not yet assessed', status: 'New' });
+      Store.savePatients(list);
+      render();
+      closePatientModal();
+    });
+
+    render();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Dashboard — iPrime Vision</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+  .p-dash { padding: 44px 0 80px; }
+  .p-greet { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:32px; }
+  .p-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:36px; }
+  .p-stat { background:var(--white); border:1px solid var(--border-soft); border-radius:var(--radius-lg); padding:22px; box-shadow:var(--shadow-sm); }
+  .p-stat strong { display:block; font-family:var(--font-display); font-size:1.9rem; }
+  .p-cols { display:grid; grid-template-columns: 1.4fr 1fr; gap:24px; align-items:start; }
+  @media (max-width: 900px) { .p-stats{grid-template-columns:1fr;} .p-cols{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+
+<div id="site-nav"></div>
+
+<section class="p-dash">
+  <div class="container">
+
+    <div class="p-greet">
+      <div>
+        <span class="eyebrow" id="today-label"></span>
+        <h1 id="greet-name">Welcome back!</h1>
+        <p class="text-soft">Here's a quick look at your eye care with us.</p>
+      </div>
+      <a href="appointment.html" class="btn btn-primary">Book New Appointment</a>
+    </div>
+
+    <div class="p-stats">
+      <div class="p-stat"><span class="eyebrow">Upcoming Appointments</span><strong id="stat-upcoming">0</strong></div>
+      <div class="p-stat"><span class="eyebrow">Active Prescriptions</span><strong id="stat-rx">0</strong></div>
+      <div class="p-stat"><span class="eyebrow">Unread Notifications</span><strong id="stat-notif">0</strong></div>
+    </div>
+    <div id="appointment-notice" class="form-message" style="margin-bottom:24px;"></div>
+
+    <div class="p-cols">
+      <!-- Appointments -->
+      <div class="card">
+        <div class="flex-between mb-16">
+          <h3 style="margin:0;">My Appointments</h3>
+          <a href="appointment.html" style="font-size:.85rem;font-weight:700;color:var(--latte-dark);">Book another →</a>
+        </div>
+        <div id="appt-list"></div>
+      </div>
+
+      <!-- Notifications + Prescription -->
+      <div style="display:grid;gap:24px;">
+        <div class="card">
+          <h3 class="mb-16">Recent Notifications</h3>
+          <div id="notif-list"></div>
+        </div>
+        <div class="card">
+          <h3 class="mb-16">Latest Prescription</h3>
+          <div id="rx-card"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div id="site-footer"></div>
+
+<script>window.__ipvDepth = 1;</script>
+<script src="../js/data.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  const user = requireRole('patient');
+  if (user) {
+    renderSiteNav('home');
+    renderSiteFooter();
+
+    document.getElementById('today-label').textContent = fmtDate(todayISO());
+    document.getElementById('greet-name').textContent = 'Welcome back, ' + user.name.split(' ')[0] + '!';
+
+    let myAppts = Store.appointments().filter(a => a.patientId === user.id || a.patient === user.name)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    const upcoming = myAppts.filter(a => a.date >= todayISO());
+    document.getElementById('stat-upcoming').textContent = upcoming.length;
+
+    const myRx = Store.prescriptions().filter(r => r.patientId === user.id || r.patient === user.name);
+    document.getElementById('stat-rx').textContent = myRx.filter(r => r.status !== 'Archived').length;
+
+    const myNotifs = Store.notifications().filter(n => n.audience === user.id).sort((a,b) => new Date(b.time) - new Date(a.time));
+    document.getElementById('stat-notif').textContent = myNotifs.filter(n => !n.read).length;
+
+    const apptListEl = document.getElementById('appt-list');
+    function renderAppointments() {
+      const confirmed = myAppts.find(a => a.status === 'Confirmed' && a.date >= todayISO());
+      const notice = document.getElementById('appointment-notice');
+      notice.textContent = confirmed ? `Your ${confirmed.service} appointment on ${fmtDate(confirmed.date)} at ${confirmed.time} has been confirmed by the clinic.` : '';
+      notice.className = confirmed ? 'form-message show success' : 'form-message';
+      if (!myAppts.length) {
+      apptListEl.innerHTML = '<div class="empty-state">' + svg('calendar') + '<p>No appointments yet. Book your first visit!</p></div>';
+      } else {
+      apptListEl.innerHTML = myAppts.slice(0, 5).map(a => `
+        <div class="list-row">
+          <div class="lr-time">${a.time}<span>${fmtDate(a.date)}</span></div>
+          <div class="lr-main"><strong>${a.service}</strong><small>${a.notes || 'No additional notes'}</small></div>
+          <span class="tag ${a.status === 'Confirmed' ? 'tag-success' : a.status === 'Pending' ? 'tag-warning' : 'tag-danger'}">${a.status}</span>
+        </div>`).join('');
+        }
+    }
+      renderAppointments();
+
+      async function refreshAppointments() {
+        const response = await fetch('/api/appointments');
+        if (!response.ok) return;
+        const result = await response.json();
+        myAppts = result.appointments.sort((a,b) => a.date.localeCompare(b.date));
+        const upcomingAppointments = myAppts.filter(a => a.date >= todayISO());
+        document.getElementById('stat-upcoming').textContent = upcomingAppointments.length;
+        renderAppointments();
+      }
+      refreshAppointments();
+      window.setInterval(refreshAppointments, 15000);
+
+    const notifListEl = document.getElementById('notif-list');
+    if (!myNotifs.length) {
+      notifListEl.innerHTML = '<p class="text-soft" style="font-size:.88rem;">No notifications yet.</p>';
+    } else {
+      notifListEl.innerHTML = myNotifs.slice(0, 4).map(n => `
+        <div class="notif-row">
+          <div class="notif-dot">${svg(n.type === 'appointment' ? 'calendar' : n.type === 'prescription' ? 'glasses' : 'bell')}</div>
+          <div class="nr-main"><strong>${n.title}</strong><small>${timeAgo(n.time)}</small></div>
+          ${!n.read ? '<span class="unread-dot"></span>' : ''}
+        </div>`).join('');
+    }
+
+    const rxCardEl = document.getElementById('rx-card');
+    if (!myRx.length) {
+      rxCardEl.innerHTML = '<p class="text-soft" style="font-size:.88rem;">No prescriptions on file yet.</p>';
+    } else {
+      const latest = myRx.sort((a,b) => b.date.localeCompare(a.date))[0];
+      rxCardEl.innerHTML = `
+        <p class="text-soft" style="font-size:.8rem;margin-bottom:10px;">Issued ${fmtDate(latest.date)}</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th></th><th>SPH</th><th>CYL</th></tr></thead>
+            <tbody>
+              <tr><td>OD (Right)</td><td>${latest.odSph}</td><td>${latest.odCyl}</td></tr>
+              <tr><td>OS (Left)</td><td>${latest.osSph}</td><td>${latest.osCyl}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-soft mt-16" style="font-size:.82rem;">${latest.notes || ''}</p>`;
+    }
+  }
+</script>
+</body>
+</html>
